@@ -63,8 +63,16 @@ public class IdentifyUserAuthenticatorFactory implements AuthenticatorFactory {
         buttonTextProperty.setType(ProviderConfigProperty.STRING_TYPE);
         buttonTextProperty.setDefaultValue(IdentifyUserProperties.DEFAULT_BUTTON_TEXT);
 
+        ProviderConfigProperty phoneNumberProperty = new ProviderConfigProperty();
+        phoneNumberProperty.setName(IdentifyUserProperties.CONFIG_PROPERTY_PHONE_ATTR_NAME);
+        phoneNumberProperty.setLabel("Phone Number Attribute");
+        phoneNumberProperty.setHelpText("The name of the user-attribute that holds the phone number");
+        phoneNumberProperty.setType(ProviderConfigProperty.STRING_TYPE);
+        phoneNumberProperty.setDefaultValue(IdentifyUserProperties.DEFAULT_PHONE_ATTR);
+
         configProperties.add(labelTextProperty);
         configProperties.add(buttonTextProperty);
+        configProperties.add(phoneNumberProperty);
         return configProperties;
     }
 
