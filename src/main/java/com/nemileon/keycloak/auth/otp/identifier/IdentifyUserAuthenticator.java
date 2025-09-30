@@ -5,13 +5,16 @@ import org.keycloak.authentication.AuthenticationFlowContext;
 import org.keycloak.authentication.AuthenticationFlowError;
 import org.keycloak.authentication.Authenticator;
 import org.keycloak.forms.login.LoginFormsProvider;
+import org.keycloak.models.AuthenticatorConfigModel;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.models.UserModel;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 public class IdentifyUserAuthenticator implements Authenticator {
     private static final Logger logger = Logger.getLogger(IdentifyUserAuthenticator.class.getName());
@@ -24,14 +27,15 @@ public class IdentifyUserAuthenticator implements Authenticator {
     @Override
     public void action(AuthenticationFlowContext authFlowContext) {
         Map<String, String> configs = getConfigs(authFlowContext);
+        String authMethod = IdentifyUserProperties.EMAIL;
         String emailOrPhone = authFlowContext.getHttpRequest()
                 .getDecodedFormParameters()
                 .getFirst(IdentifyUserProperties.EMAIL_OR_PHONE_FIELD);
 
-        logger.info("Identifying user: " + emailOrPhone);
+        logger.info("[FIND USER] Identifying user: " + emailOrPhone);
         // Input Validation
         if(emailOrPhone == null || emailOrPhone.isBlank()) {
-            logger.warning("Blank email or phone number");
+            logger.warning("[FIND USER] Blank email or phone number");
             authFlowContext.failureChallenge(AuthenticationFlowError.INVALID_USER,
                     buildIdentifierForm(authFlowContext).setError(IdentifyUserProperties.IDENTIFIER_VALIDATION_ERROR_MSG).createForm(IdentifyUserProperties.IDENTIFIER_FORM));
             return;
@@ -41,20 +45,28 @@ public class IdentifyUserAuthenticator implements Authenticator {
         UserModel user = authFlowContext.getSession().users()
                 .getUserByEmail(authFlowContext.getRealm(), emailOrPhone);
         if(user == null) {
-            logger.info("Identifying user with phone: " + emailOrPhone);
+            logger.info("[FIND USER] Identifying user with phone: " + emailOrPhone);
+            authMethod = IdentifyUserProperties.PHONE;
             user = authFlowContext.getSession().users()
                     .searchForUserByUserAttributeStream(authFlowContext.getRealm(), configs.get(IdentifyUserProperties.CONFIG_PROPERTY_PHONE_ATTR_NAME), emailOrPhone)
                     .findFirst().orElse(null);
         }
 
         if (user == null) {
-            logger.warning("User not found by email and phone number");
+            logger.warning("[FIND USER] User not found by email and phone number");
             authFlowContext.failureChallenge(AuthenticationFlowError.INVALID_USER,
                     buildIdentifierForm(authFlowContext).setError(IdentifyUserProperties.USER_NOT_FOUND_ERROR_MSG).createForm(IdentifyUserProperties.IDENTIFIER_FORM));
             return;
         }
 
+        authFlowContext.getAuthenticationSession().setAuthNote(configs.get(IdentifyUserProperties.CONFIG_PROPERTY_AUTH_NOTE_NAME), authMethod);
         authFlowContext.setUser(user);
+        logger.info(String.format(
+                "[FIND USER] Authentication flow details => authNote: %s, methodUsed: %s",
+                configs.get(IdentifyUserProperties.CONFIG_PROPERTY_AUTH_NOTE_NAME),
+                authFlowContext.getAuthenticationSession()
+                        .getAuthNote(configs.get(IdentifyUserProperties.CONFIG_PROPERTY_AUTH_NOTE_NAME))
+        ));
         authFlowContext.success();
     }
 
@@ -75,26 +87,15 @@ public class IdentifyUserAuthenticator implements Authenticator {
      * Get Config Properties
      * */
     private Map<String, String> getConfigs(AuthenticationFlowContext authFlowContext) {
-        String labelText = IdentifyUserProperties.DEFAULT_LABEL_TEXT;
-        String buttonText = IdentifyUserProperties.DEFAULT_BUTTON_TEXT;
-        String phoneAttr = IdentifyUserProperties.DEFAULT_PHONE_ATTR;
+        Map<String, String> cfg = Optional.ofNullable(authFlowContext.getAuthenticatorConfig())
+                .map(AuthenticatorConfigModel::getConfig)
+                .orElse(Map.of());
 
-        Map<String, String> configs = new HashMap<>();
-
-        if (authFlowContext.getAuthenticatorConfig() != null) {
-            Map<String, String> cfg = authFlowContext.getAuthenticatorConfig().getConfig();
-            if (cfg != null) {
-                labelText = cfg.getOrDefault(IdentifyUserProperties.CONFIG_PROPERTY_LABELTEXT_NAME, labelText);
-                buttonText = cfg.getOrDefault(IdentifyUserProperties.CONFIG_PROPERTY_BUTTONTEXT_NAME, buttonText);
-                phoneAttr = cfg.getOrDefault(IdentifyUserProperties.CONFIG_PROPERTY_PHONE_ATTR_NAME, phoneAttr);
-            }
-        }
-
-        configs.put(IdentifyUserProperties.CONFIG_PROPERTY_LABELTEXT_NAME, labelText);
-        configs.put(IdentifyUserProperties.CONFIG_PROPERTY_BUTTONTEXT_NAME, buttonText);
-        configs.put(IdentifyUserProperties.CONFIG_PROPERTY_PHONE_ATTR_NAME, phoneAttr);
-
-        return configs;
+        return IdentifyUserProperties.DEFAULTS.keySet().stream()
+                .collect(Collectors.toMap(
+                        key -> key,
+                        key -> Optional.ofNullable(cfg.get(key)).orElse(IdentifyUserProperties.DEFAULTS.get(key))
+                ));
     }
 
     @Override
