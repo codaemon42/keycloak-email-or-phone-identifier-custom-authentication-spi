@@ -70,6 +70,13 @@ public class IdentifyUserAuthenticatorFactory implements AuthenticatorFactory {
         phoneNumberProperty.setType(ProviderConfigProperty.STRING_TYPE);
         phoneNumberProperty.setDefaultValue(IdentifyUserProperties.DEFAULT_PHONE_ATTR);
 
+        ProviderConfigProperty authNoteProperty = new ProviderConfigProperty();
+        authNoteProperty.setName(IdentifyUserProperties.CONFIG_PROPERTY_AUTH_NOTE_NAME);
+        authNoteProperty.setLabel("Auth Note (Advance)");
+        authNoteProperty.setHelpText("Specifies the user-session key used to store the authentication method selected in this authenticator. This allows later authenticators in the flow to identify which method (e.g., email or phone number) was previously used.");
+        authNoteProperty.setType(ProviderConfigProperty.STRING_TYPE);
+        authNoteProperty.setDefaultValue(IdentifyUserProperties.DEFAULT_AUTH_NOTE);
+
         configProperties.add(labelTextProperty);
         configProperties.add(buttonTextProperty);
         configProperties.add(phoneNumberProperty);
